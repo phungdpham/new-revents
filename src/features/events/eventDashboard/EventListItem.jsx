@@ -21,7 +21,7 @@ export default function EventListItem({ event }) {
                   style={{stop: '40px'}}
                   ribbon='right'
                   color='red'
-                  content='This event is cancelled'
+                  content='This event has been cancelled'
                 />
               )}
             </Item.Content>
