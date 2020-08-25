@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Grid, Header, Button, Tab } from "semantic-ui-react";
 import { format } from "date-fns";
-import { ProfileForm } from "./profilePage/ProfileForm";
+import { ProfileForm } from "./ProfileForm";
 
 export default function AboutTab({ profile, isCurrentUser }) {
   const [editMode, setEditMMode] = useState(false);
