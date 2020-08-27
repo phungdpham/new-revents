@@ -21,8 +21,21 @@ export function dataFromSnapshot(snapshot) {
   };
 }
 
-export function listToEventsFromFirestore() {
-  return db.collection("events").orderBy("date");
+export function listToEventsFromFirestore(predicate) {
+  const user = firebase.auth().currentUser;
+  let eventsRef = db.collection("events").orderBy("date");
+  switch (predicate.get("filter")) {
+    case "isGoing":
+      return eventsRef
+        .where("attendeeIds", "array-contains", user.uid)
+        .where("date", ">=", predicate.get("startDate"));
+    case "isHost":
+      return eventsRef
+        .where("hostUid", "==", user.uid)
+        .where("date", ">=", predicate.get("startDate"));
+    default:
+      return eventsRef.where("date", ">=", predicate.get("startDate"));
+  }
 }
 
 export function listToEventFromFirestore(eventId) {
@@ -30,15 +43,18 @@ export function listToEventFromFirestore(eventId) {
 }
 
 export function addEventToFirestore(event) {
+  const user = firebase.auth().currentUser;
   return db.collection("events").add({
     ...event,
-    hostedBy: "Diana",
-    hostPhotoURL: "https://randomuser.me/api/portraits/women/22.jpg",
+    hostUid: user.uid,
+    hostedBy: user.displayName,
+    hostPhotoURL: user.photoURL || null,
     attendees: firebase.firestore.FieldValue.arrayUnion({
-      id: cuid(),
-      displayName: "Diana",
-      photoURL: "https://randomuser.me/api/portraits/women/22.jpg",
+      id: user.uid,
+      displayName: user.displayName,
+      photoURL: user.photoURL || null,
     }),
+    attendeeIds: firebase.firestore.FieldValue.arrayUnion(user.uid),
   });
 }
 
@@ -115,12 +131,12 @@ export function getUserPhotos(userUid) {
 export async function setMainPhoto(photo) {
   const user = firebase.auth().currentUser;
   try {
-    await db.collection('users').doc(user.uid).update({
-      photoURL: photo.url
-    })
+    await db.collection("users").doc(user.uid).update({
+      photoURL: photo.url,
+    });
     return await user.updateProfile({
-      photoURL: photo.url
-    })
+      photoURL: photo.url,
+    });
   } catch (error) {
     throw error;
   }
@@ -128,5 +144,43 @@ export async function setMainPhoto(photo) {
 
 export function deletePhotoFromCollection(photoId) {
   const userUid = firebase.auth().currentUser.uid;
-  return db.collection('users').doc(userUid).collection('photos').doc(photoId).delete();
+  return db
+    .collection("users")
+    .doc(userUid)
+    .collection("photos")
+    .doc(photoId)
+    .delete();
+}
+
+export function addUserAttendence(event) {
+  const user = firebase.auth().currentUser;
+  return db
+    .collection("events")
+    .doc(event.id)
+    .update({
+      attendees: firebase.firestore.FieldValue.arrayUnion({
+        id: user.uid,
+        displayName: user.displayName,
+        photoURL: user.photoURL || null,
+      }),
+      attendeeIds: firebase.firestore.FieldValue.arrayUnion(user.uid),
+    });
+}
+
+export async function cancelUserAttendence(event) {
+  const user = firebase.auth().currentUser;
+  try {
+    const eventDoc = await db.collection("events").doc(event.id).get();
+    return db
+      .collection("events")
+      .doc(event.id)
+      .update({
+        attendeeIds: firebase.firestore.FieldValue.arrayRemove(user.uid),
+        attendees: eventDoc
+          .data()
+          .attendees.filter((attendee) => attendee.id !== user.uid),
+      });
+  } catch (error) {
+    throw error;
+  }
 }
